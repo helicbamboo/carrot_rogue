@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="一款纯静态的保卫萝卜肉鸽塔防小游戏，每波结束后选择炮塔与词条强化。"
+    />
+    <title>萝卜守望 · 夜行防线</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="carrot-mark" aria-hidden="true">
+            <span class="carrot-mark__leaf"></span>
+          </span>
+          <div>
+            <p class="brand__eyebrow">ROGUELIKE DEFENSE</p>
+            <h1>萝卜守望</h1>
+          </div>
+        </div>
+
+        <div class="hud" aria-label="游戏状态">
+          <div class="hud-stat hud-stat--wave">
+            <span class="hud-stat__label">波次</span>
+            <strong id="waveStat">0 / 8</strong>
+          </div>
+          <div class="hud-stat hud-stat--coins">
+            <span class="coin-icon" aria-hidden="true">¥</span>
+            <strong id="coinStat">160</strong>
+          </div>
+          <button
+            class="icon-button"
+            id="soundToggle"
+            type="button"
+            aria-label="关闭音效"
+            title="音效"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z"></path>
+              <path class="sound-wave" d="M15 9.2a4 4 0 0 1 0 5.6"></path>
+              <path class="sound-wave" d="M17.8 6.4a8 8 0 0 1 0 11.2"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="game-layout">
+        <section class="stage-panel" aria-label="游戏战场">
+          <div class="stage-topline">
+            <div>
+              <span class="status-dot" id="statusDot"></span>
+              <strong id="stageStatus">防线准备中</strong>
+            </div>
+            <div class="stage-tools">
+              <span class="stage-topline__hint" id="enemyCounter">0 只怪物在场</span>
+              <span class="stage-tools__divider" aria-hidden="true"></span>
+              <button
+                class="stage-control-button"
+                id="pauseButton"
+                type="button"
+                aria-label="暂停游戏"
+                title="暂停"
+                disabled
+              >
+                <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 6v12M16 6v12"></path>
+                </svg>
+                <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 6 9 6-9 6V6Z"></path>
+                </svg>
+              </button>
+              <div class="speed-control" role="group" aria-label="游戏速度">
+                <button
+                  class="speed-button is-active"
+                  type="button"
+                  data-speed="1"
+                  aria-label="1倍速"
+                  aria-pressed="true"
+                >
+                  1×
+                </button>
+                <button
+                  class="speed-button"
+                  type="button"
+                  data-speed="2"
+                  aria-label="2倍速"
+                  aria-pressed="false"
+                >
+                  2×
+                </button>
+                <button
+                  class="speed-button"
+                  type="button"
+                  data-speed="4"
+                  aria-label="4倍速"
+                  aria-pressed="false"
+                >
+                  4×
+                </button>
+                <button
+                  class="speed-button"
+                  type="button"
+                  data-speed="8"
+                  aria-label="8倍速"
+                  aria-pressed="false"
+                >
+                  8×
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="canvas-frame" id="canvasFrame">
+            <canvas
+              id="gameCanvas"
+              width="1000"
+              height="640"
+              aria-label="保卫萝卜战场，点击空闲草地建造炮塔，点击怪物可优先攻击"
+            ></canvas>
+            <div
+              class="tower-picker"
+              id="towerPicker"
+              role="dialog"
+              aria-label="选择炮塔"
+              hidden
+            >
+              <div class="tower-picker__head">
+                <strong>选择炮塔</strong>
+                <button
+                  class="tower-picker__close"
+                  id="towerPickerClose"
+                  type="button"
+                  aria-label="关闭炮塔选择"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6 6 12 12M18 6 6 18"></path>
+                  </svg>
+                </button>
+              </div>
+              <button class="tower-option" id="towerBuildButton" type="button">
+                <span class="tower-option__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 21v-7"></path>
+                    <path d="M9 14h6"></path>
+                    <path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3Z"></path>
+                  </svg>
+                </span>
+                <span class="tower-option__copy">
+                  <strong>种子炮塔</strong>
+                  <small>单体攻击 · 射程 180</small>
+                </span>
+                <span class="tower-option__price">
+                  <b>55</b>
+                  <small>金币</small>
+                </span>
+              </button>
+              <p class="tower-picker__note" id="towerPickerNote">点击炮塔完成部署</p>
+            </div>
+            <div
+              class="carrot-health"
+              id="carrotHealth"
+              role="status"
+              aria-label="萝卜生命 10"
+            >
+              <strong id="lifeStat">10</strong>
+            </div>
+            <div
+              class="pause-overlay"
+              id="pauseOverlay"
+              aria-live="polite"
+              aria-hidden="true"
+            >
+              <span class="pause-overlay__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M8 6v12M16 6v12"></path>
+                </svg>
+              </span>
+              <strong>战斗暂停</strong>
+            </div>
+            <div class="wave-banner" id="waveBanner" aria-live="polite">
+              <span>WAVE</span>
+              <strong>01</strong>
+            </div>
+            <div class="toast" id="toast" role="status" aria-live="polite"></div>
+          </div>
+
+          <div class="stage-footer">
+            <div class="legend">
+              <span><i class="legend-dot legend-dot--normal"></i>均衡</span>
+              <span><i class="legend-dot legend-dot--fast"></i>疾行</span>
+              <span><i class="legend-dot legend-dot--tank"></i>重甲</span>
+            </div>
+            <span id="buildHint">点击空闲草地选择炮塔</span>
+          </div>
+        </section>
+
+        <aside class="side-panel">
+          <section class="panel-section wave-panel">
+            <div class="section-heading">
+              <div>
+                <span class="section-kicker">当前防线</span>
+                <h2 id="waveTitle">整备阶段</h2>
+              </div>
+              <span class="wave-badge" id="waveBadge">ROUND 0</span>
+            </div>
+
+            <div class="wave-track" id="waveTrack" aria-label="波次进度"></div>
+
+            <div class="mission-copy" id="missionCopy">
+              第 1 波即将抵达。先部署炮塔，再开始守卫萝卜。
+            </div>
+
+            <button class="primary-button" id="waveButton" type="button">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="m9 6 9 6-9 6V6Z"></path>
+                </svg>
+              </span>
+              <span id="waveButtonText">开始第 1 波</span>
+            </button>
+          </section>
+
+          <section class="panel-section tower-panel">
+            <div class="section-heading">
+              <div>
+                <span class="section-kicker">防御工事</span>
+                <h2>炮塔防线</h2>
+              </div>
+              <span class="tower-count" id="towerCount">1 座</span>
+            </div>
+
+            <div class="build-guide">
+              <span class="build-guide__mark" aria-hidden="true">+</span>
+              <span>
+                <strong>点击空闲草地</strong>
+                <small>在格子上方选择炮塔</small>
+              </span>
+            </div>
+
+            <div class="tower-list" id="towerList"></div>
+          </section>
+
+          <section class="panel-section intel-panel">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <span class="section-kicker">来袭情报</span>
+                <h2>怪物图鉴</h2>
+              </div>
+            </div>
+            <div class="enemy-list">
+              <div class="enemy-row">
+                <span class="enemy-swatch enemy-swatch--normal"></span>
+                <span><strong>团子怪</strong><small>均衡 · 普通速度</small></span>
+                <b>HP 72</b>
+              </div>
+              <div class="enemy-row">
+                <span class="enemy-swatch enemy-swatch--fast"></span>
+                <span><strong>风铃怪</strong><small>快速 · 生命较低</small></span>
+                <b>HP 38</b>
+              </div>
+              <div class="enemy-row">
+                <span class="enemy-swatch enemy-swatch--tank"></span>
+                <span><strong>石甲怪</strong><small>缓慢 · 生命较高</small></span>
+                <b>HP 230</b>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div class="modal-layer" id="upgradeModal" aria-hidden="true">
+      <section
+        class="upgrade-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upgradeTitle"
+      >
+        <div class="dialog-glow" aria-hidden="true"></div>
+        <div class="upgrade-dialog__head">
+          <span class="upgrade-seal" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="m12 3 2.3 5.3L20 10l-4.4 3.6.7 5.7-4.3-2.8-4.3 2.8.7-5.7L4 10l5.7-1.7L12 3Z"></path>
+            </svg>
+          </span>
+          <div>
+            <span class="section-kicker">波次清剿完成</span>
+            <h2 id="upgradeTitle">为一座炮塔选择词条</h2>
+            <p>先锁定一座炮塔，再从三个随机强化中选择一个。</p>
+          </div>
+        </div>
+
+        <div class="target-section">
+          <span class="target-label">强化目标</span>
+          <div class="target-list" id="upgradeTargets"></div>
+        </div>
+
+        <div class="upgrade-options" id="upgradeOptions"></div>
+
+        <div class="upgrade-result" id="upgradeResult" hidden>
+          <span class="result-mark" aria-hidden="true">✓</span>
+          <div>
+            <strong id="resultTitle">强化已生效</strong>
+            <p id="resultCopy"></p>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="secondary-button" id="upgradeLaterButton" type="button">
+            跳过本次强化
+          </button>
+          <button class="primary-button primary-button--dialog" id="nextWaveButton" type="button" hidden>
+            <span id="nextWaveButtonText">开始第 2 波</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 9 6-9 6V6Z"></path>
+            </svg>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-layer" id="endModal" aria-hidden="true">
+      <section class="end-dialog" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+        <span class="end-dialog__mark" id="endMark" aria-hidden="true"></span>
+        <span class="section-kicker" id="endKicker">防线战报</span>
+        <h2 id="endTitle">萝卜守住了</h2>
+        <p id="endCopy"></p>
+        <div class="end-stats">
+          <span><small>抵达波次</small><strong id="endWave">8</strong></span>
+          <span><small>击败怪物</small><strong id="endKills">0</strong></span>
+          <span><small>炮塔数量</small><strong id="endTowers">1</strong></span>
+        </div>
+        <button class="primary-button" id="restartButton" type="button">重新开始</button>
+      </section>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
