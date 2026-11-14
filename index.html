@@ -5,21 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="一款纯静态的保卫萝卜肉鸽塔防小游戏，每波结束后选择炮塔与词条强化。"
+      content="一款纯静态、无服务端的肉鸽塔防小游戏，每波结束后选择炮塔与词条强化。"
     />
-    <title>萝卜守望 · 夜行防线</title>
+    <title>小屋守望 · 夜行防线</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
-          <span class="carrot-mark" aria-hidden="true">
-            <span class="carrot-mark__leaf"></span>
+          <span class="house-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48">
+              <path class="house-mark__chimney" d="M28 16V8h8v14"></path>
+              <path class="house-mark__roof" d="M5 23 24 6l19 17-5 4-14-12L10 27Z"></path>
+              <path class="house-mark__wall" d="M10 25h28v17H10Z"></path>
+              <path class="house-mark__door" d="M20 42V31h8v11"></path>
+              <path class="house-mark__window" d="M14 29h4v4h-4Z"></path>
+            </svg>
           </span>
           <div>
             <p class="brand__eyebrow">ROGUELIKE DEFENSE</p>
-            <h1>萝卜守望</h1>
+            <h1>小屋守望</h1>
           </div>
         </div>
 
@@ -119,7 +125,7 @@
               id="gameCanvas"
               width="1000"
               height="640"
-              aria-label="保卫萝卜战场，点击空闲草地建造炮塔，点击怪物可优先攻击"
+              aria-label="夜行防线战场，点击空闲草地建造炮塔，点击怪物可优先攻击"
             ></canvas>
             <div
               class="tower-picker"
@@ -150,7 +156,7 @@
                   </svg>
                 </span>
                 <span class="tower-option__copy">
-                  <strong>种子炮塔</strong>
+                  <strong>守夜炮塔</strong>
                   <small>单体攻击 · 射程 180</small>
                 </span>
                 <span class="tower-option__price">
@@ -161,10 +167,10 @@
               <p class="tower-picker__note" id="towerPickerNote">点击炮塔完成部署</p>
             </div>
             <div
-              class="carrot-health"
-              id="carrotHealth"
+              class="house-health"
+              id="houseHealth"
               role="status"
-              aria-label="萝卜生命 10"
+              aria-label="小屋生命 10"
             >
               <strong id="lifeStat">10</strong>
             </div>
@@ -211,7 +217,7 @@
             <div class="wave-track" id="waveTrack" aria-label="波次进度"></div>
 
             <div class="mission-copy" id="missionCopy">
-              第 1 波即将抵达。先部署炮塔，再开始守卫萝卜。
+              第 1 波即将抵达。先部署炮塔，再开始守卫小屋。
             </div>
 
             <button class="primary-button" id="waveButton" type="button">
@@ -327,7 +333,7 @@
       <section class="end-dialog" role="dialog" aria-modal="true" aria-labelledby="endTitle">
         <span class="end-dialog__mark" id="endMark" aria-hidden="true"></span>
         <span class="section-kicker" id="endKicker">防线战报</span>
-        <h2 id="endTitle">萝卜守住了</h2>
+        <h2 id="endTitle">小屋守住了</h2>
         <p id="endCopy"></p>
         <div class="end-stats">
           <span><small>抵达波次</small><strong id="endWave">8</strong></span>

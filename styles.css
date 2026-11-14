@@ -124,59 +124,48 @@ svg {
   letter-spacing: 0.22em;
 }
 
-.carrot-mark {
-  position: relative;
-  display: block;
-  width: 34px;
+.house-mark {
+  display: grid;
+  width: 46px;
   height: 48px;
+  place-items: center;
+  filter: drop-shadow(0 5px 7px rgba(4, 24, 17, 0.28));
 }
 
-.carrot-mark::before {
-  position: absolute;
-  bottom: 2px;
-  left: 7px;
-  width: 22px;
-  height: 33px;
-  content: "";
-  background: var(--orange);
-  border: 2px solid rgba(83, 42, 17, 0.35);
-  border-radius: 5px 5px 46% 46%;
-  transform: rotate(7deg);
-  box-shadow: inset -5px -4px 0 rgba(183, 80, 28, 0.2);
+.house-mark svg {
+  width: 45px;
+  height: 45px;
+  overflow: visible;
 }
 
-.carrot-mark__leaf,
-.carrot-mark__leaf::before,
-.carrot-mark__leaf::after {
-  position: absolute;
-  content: "";
-  background: var(--leaf-bright);
-  border-radius: 100% 0 100% 0;
-  transform-origin: bottom center;
+.house-mark__chimney {
+  fill: #9a5339;
+  stroke: #60392c;
+  stroke-width: 2;
 }
 
-.carrot-mark__leaf {
-  top: 2px;
-  left: 16px;
-  width: 11px;
-  height: 18px;
-  transform: rotate(12deg);
+.house-mark__roof {
+  fill: #f0ad4e;
+  stroke: #8d542b;
+  stroke-width: 2.2;
 }
 
-.carrot-mark__leaf::before {
-  top: 5px;
-  left: -9px;
-  width: 11px;
-  height: 15px;
-  transform: rotate(-45deg);
+.house-mark__wall {
+  fill: #f5dfaf;
+  stroke: #79583b;
+  stroke-width: 2.2;
 }
 
-.carrot-mark__leaf::after {
-  top: 4px;
-  right: -8px;
-  width: 10px;
-  height: 15px;
-  transform: rotate(50deg);
+.house-mark__door {
+  fill: #3f8060;
+  stroke: #6b4a33;
+  stroke-width: 1.8;
+}
+
+.house-mark__window {
+  fill: #75c4d2;
+  stroke: #456f72;
+  stroke-width: 1.5;
 }
 
 .hud {
@@ -611,9 +600,9 @@ svg {
   color: #a54f45;
 }
 
-.carrot-health {
+.house-health {
   position: absolute;
-  bottom: clamp(5px, 1.4%, 12px);
+  top: 78%;
   left: 92.5%;
   z-index: 3;
   display: flex;
@@ -633,31 +622,31 @@ svg {
   box-shadow:
     0 5px 14px rgba(16, 52, 38, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%);
 }
 
-.carrot-health::before {
+.house-health::after {
   position: absolute;
-  top: -5px;
+  bottom: -5px;
   left: 50%;
   width: 8px;
   height: 8px;
   content: "";
   background: rgba(18, 63, 49, 0.94);
-  border-top: 1px solid rgba(255, 249, 232, 0.24);
-  border-left: 1px solid rgba(255, 249, 232, 0.24);
+  border-right: 1px solid rgba(255, 249, 232, 0.24);
+  border-bottom: 1px solid rgba(255, 249, 232, 0.24);
   transform: translateX(-50%) rotate(45deg);
 }
 
-.carrot-health strong {
+.house-health strong {
   font: inherit;
 }
 
-.carrot-health.is-warning {
+.house-health.is-warning {
   color: #ffc75e;
 }
 
-.carrot-health.is-critical {
+.house-health.is-critical {
   color: #ff9c8d;
 }
 
@@ -1650,10 +1639,10 @@ svg {
     gap: 8px;
   }
 
-  .carrot-mark {
-    width: 27px;
-    height: 39px;
-    transform: scale(0.82);
+  .house-mark {
+    width: 38px;
+    height: 40px;
+    transform: scale(0.86);
     transform-origin: left center;
   }
 

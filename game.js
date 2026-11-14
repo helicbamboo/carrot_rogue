@@ -7,7 +7,7 @@
   const ui = {
     waveStat: document.getElementById("waveStat"),
     lifeStat: document.getElementById("lifeStat"),
-    carrotHealth: document.getElementById("carrotHealth"),
+    houseHealth: document.getElementById("houseHealth"),
     coinStat: document.getElementById("coinStat"),
     stageStatus: document.getElementById("stageStatus"),
     enemyCounter: document.getElementById("enemyCounter"),
@@ -63,7 +63,7 @@
   const GRID_ROWS = 12;
   const GRID_ORIGIN_X = 0;
   const GRID_ORIGIN_Y = (HEIGHT - GRID_ROWS * CELL_SIZE) / 2;
-  const CARROT_CELL = { col: 18, row: 10 };
+  const HOUSE_CELL = { col: 18, row: 10 };
   const STARTING_TOWER_CELL = { col: 5, row: 5 };
 
   function getCellId(col, row) {
@@ -194,15 +194,15 @@
 
   const affixes = [
     {
-      id: "heavy-seed",
-      name: "重型种核",
+      id: "heavy-core",
+      name: "重型弹芯",
       rarity: "精良",
-      description: "把每一颗种子压得更紧实，单发伤害显著提升。",
+      description: "换装高密度弹芯，使每一次命中造成更高伤害。",
       effectText: (tower) => `伤害 +32%`,
       apply: (tower) => {
         tower.damage *= 1.32;
       },
-      icon: "seed",
+      icon: "core",
       accent: "#f3b968",
       tint: "rgba(244, 155, 56, 0.14)",
     },
@@ -221,9 +221,9 @@
     },
     {
       id: "long-scope",
-      name: "高倍藤镜",
+      name: "高倍瞄具",
       rarity: "普通",
-      description: "枝条标尺延伸了侦测距离，射程覆盖更远弯道。",
+      description: "加长侦测标尺，让射程覆盖更远的道路弯角。",
       effectText: () => "射程 +26",
       apply: (tower) => {
         tower.range += 26;
@@ -234,9 +234,9 @@
     },
     {
       id: "crit-lens",
-      name: "露珠棱镜",
+      name: "精准棱镜",
       rarity: "稀有",
-      description: "凝聚晨露折射光线，命中要害时造成双倍伤害。",
+      description: "校准折射镜片，命中要害时造成双倍伤害。",
       effectText: () => "暴击率 +12%",
       apply: (tower) => {
         tower.critChance = Math.min(0.65, tower.critChance + 0.12);
@@ -249,7 +249,7 @@
       id: "loot-pouch",
       name: "战利品袋",
       rarity: "普通",
-      description: "击败怪物时收集更多散落种子，化作额外金币。",
+      description: "击败怪物时回收散落零件，换取额外金币。",
       effectText: () => "击杀金币 +30%",
       apply: (tower) => {
         tower.killBonus += 0.3;
@@ -273,9 +273,9 @@
     },
     {
       id: "steady-barrel",
-      name: "稳定藤管",
+      name: "稳定炮管",
       rarity: "精良",
-      description: "藤蔓加固炮管，每次射击都能稳定发挥更高威力。",
+      description: "加固炮管结构，每次射击都能稳定发挥更高威力。",
       effectText: () => "伤害 +18% · 射程 +12",
       apply: (tower) => {
         tower.damage *= 1.18;
@@ -300,9 +300,9 @@
     },
     {
       id: "armor-breaker",
-      name: "裂甲尖刺",
+      name: "裂甲弹头",
       rarity: "精良",
-      description: "尖锐种壳能撬开厚重石甲，专克迟缓的重甲怪物。",
+      description: "特制弹头能凿开厚重石甲，专克迟缓的重甲怪物。",
       effectText: () => "对重甲怪伤害 +30%",
       apply: (tower) => {
         tower.tankBonus += 0.3;
@@ -314,7 +314,7 @@
   ];
 
   const affixIcons = {
-    seed: '<path d="M12 3c3 3 5 6 5 9a5 5 0 0 1-10 0c0-3 2-6 5-9Z"></path><path d="M9 13c2-1 4-1 6 0"></path>',
+    core: '<circle cx="12" cy="12" r="5"></circle><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"></path>',
     bolt: '<path d="m13 2-8 12h6l-1 8 8-12h-6l1-8Z"></path>',
     scope: '<circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path><circle cx="12" cy="12" r="2"></circle>',
     prism: '<path d="m12 3 8 15H4L12 3Z"></path><path d="M12 3v15M8 14h8"></path>',
@@ -602,7 +602,7 @@
       life: 0.9,
       maxLife: 0.9,
     });
-    showToast("种子炮台部署完成");
+    showToast("守夜炮塔部署完成");
     playSound("build");
     updateUI();
   }
@@ -1106,10 +1106,10 @@
     closeModal(ui.upgradeModal);
     ui.endDialog.classList.toggle("is-defeat", !won);
     ui.endKicker.textContent = won ? "防线战报" : "防线失守";
-    ui.endTitle.textContent = won ? "萝卜守住了" : "萝卜被偷家了";
+    ui.endTitle.textContent = won ? "小屋守住了" : "小屋失守了";
     ui.endCopy.textContent = won
       ? `你带着 ${towers.length} 座炮台穿过全部 ${MAX_WAVES} 波袭击，夜行防线完整运转。`
-      : "怪物还是摸到了萝卜。调整炮塔位置与词条组合，再守一次。";
+      : "怪物还是闯进了小屋。调整炮塔位置与词条组合，再守一次。";
     ui.endWave.textContent = `${state.wave} / ${MAX_WAVES}`;
     ui.endKills.textContent = state.kills;
     ui.endTowers.textContent = towers.length;
@@ -1122,9 +1122,9 @@
   function updateUI() {
     ui.waveStat.textContent = `${state.wave} / ${MAX_WAVES}`;
     ui.lifeStat.textContent = state.lives;
-    ui.carrotHealth.setAttribute("aria-label", `萝卜生命 ${state.lives}`);
-    ui.carrotHealth.classList.toggle("is-warning", state.lives <= 6 && state.lives > 3);
-    ui.carrotHealth.classList.toggle("is-critical", state.lives <= 3);
+    ui.houseHealth.setAttribute("aria-label", `小屋生命 ${state.lives}`);
+    ui.houseHealth.classList.toggle("is-warning", state.lives <= 6 && state.lives > 3);
+    ui.houseHealth.classList.toggle("is-critical", state.lives <= 3);
     ui.coinStat.textContent = state.coins;
     ui.towerCount.textContent = `${towers.length} 座`;
     ui.waveBadge.textContent = `ROUND ${state.wave}`;
@@ -1173,7 +1173,7 @@
       ui.missionCopy.textContent =
         state.wave > 0
           ? `第 ${nextWave} 波即将抵达。可以建造炮塔或调整防线。`
-          : "第 1 波即将抵达。先部署炮塔，再开始守卫萝卜。";
+          : "第 1 波即将抵达。先部署炮塔，再开始守卫小屋。";
       ui.waveButton.disabled = false;
       ui.waveButtonText.textContent = `开始第 ${nextWave} 波`;
       ui.statusDot.classList.remove("is-live");
@@ -1244,7 +1244,7 @@
       button.innerHTML = `
         <span class="tower-chip__icon" data-level="${tower.level}">${index + 1}</span>
         <span class="tower-chip__copy">
-          <strong>种子炮台 ${index + 1}</strong>
+          <strong>守夜炮塔 ${index + 1}</strong>
           <small>${tower.upgrades.length ? tower.upgrades.slice(-2).join(" · ") : "基础单体炮台"}</small>
         </span>
         <span class="tower-chip__damage">${Math.round(tower.damage)}</span>
@@ -1406,7 +1406,7 @@
     drawWorld();
     drawPath();
     drawDecorations();
-    drawCarrotHome();
+    drawHouse();
     drawBuildPreview();
     drawTowers();
     drawEnemies();
@@ -1578,76 +1578,141 @@
     });
   }
 
-  function drawCarrotHome() {
-    const { x, y } = getCellCenter(CARROT_CELL.col, CARROT_CELL.row);
+  function drawHouse() {
+    const { x, y } = getCellCenter(HOUSE_CELL.col, HOUSE_CELL.row);
     ctx.save();
     ctx.translate(x, y);
 
-    ctx.fillStyle = "rgba(37, 73, 42, 0.22)";
+    ctx.fillStyle = "rgba(37, 73, 42, 0.25)";
     ctx.beginPath();
-    ctx.ellipse(4, 26, 49, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(3, 30, 54, 18, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#5a8f4b";
+    ctx.fillStyle = "#b9a578";
+    ctx.strokeStyle = "#756244";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(-35, 4, 70, 34, 8);
+    ctx.roundRect(-39, 27, 78, 10, 3);
     ctx.fill();
-    ctx.strokeStyle = "#3f6e37";
-    ctx.lineWidth = 3;
     ctx.stroke();
 
-    ctx.strokeStyle = "#e2b67e";
-    ctx.lineWidth = 4;
+    ctx.fillStyle = "#9a5339";
+    ctx.strokeStyle = "#613b2d";
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(-23, 35);
-    ctx.lineTo(-27, 51);
-    ctx.moveTo(23, 35);
-    ctx.lineTo(28, 51);
+    ctx.roundRect(19, -42, 14, 30, 2);
+    ctx.fill();
     ctx.stroke();
+    ctx.fillStyle = "#6b4031";
+    ctx.fillRect(17, -44, 18, 5);
 
-    const pulse = 1 + Math.sin(state.time * 2.2) * 0.025;
-    ctx.save();
-    ctx.scale(pulse, pulse);
-    ctx.fillStyle = "#ec8730";
-    ctx.strokeStyle = "#b95723";
+    const wallGradient = ctx.createLinearGradient(-34, -4, 34, 31);
+    wallGradient.addColorStop(0, "#f8e8c1");
+    wallGradient.addColorStop(1, "#e4c991");
+    ctx.fillStyle = wallGradient;
+    ctx.strokeStyle = "#78583b";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(-21, -18);
-    ctx.quadraticCurveTo(-25, 11, 0, 32);
-    ctx.quadraticCurveTo(25, 11, 21, -18);
-    ctx.quadraticCurveTo(0, -28, -21, -18);
+    ctx.roundRect(-34, -5, 68, 36, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(126, 88, 54, 0.3)";
+    ctx.lineWidth = 1.2;
+    for (const lineY of [4, 13, 22]) {
+      ctx.beginPath();
+      ctx.moveTo(-31, lineY);
+      ctx.lineTo(31, lineY);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#76c2ca";
+    ctx.strokeStyle = "#4b7273";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-22, 5, 16, 15, 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 249, 224, 0.8)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-14, 6);
+    ctx.lineTo(-14, 19);
+    ctx.moveTo(-21, 12.5);
+    ctx.lineTo(-7, 12.5);
+    ctx.stroke();
+
+    ctx.fillStyle = "#45745c";
+    ctx.strokeStyle = "#674b34";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(5, 31);
+    ctx.lineTo(5, 16);
+    ctx.quadraticCurveTo(5, 7, 15, 7);
+    ctx.quadraticCurveTo(25, 7, 25, 16);
+    ctx.lineTo(25, 31);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#edc967";
+    ctx.beginPath();
+    ctx.arc(21, 20, 1.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    const lampGlow = ctx.createRadialGradient(31, 10, 1, 31, 10, 9);
+    lampGlow.addColorStop(0, "rgba(255, 220, 118, 0.7)");
+    lampGlow.addColorStop(1, "rgba(255, 220, 118, 0)");
+    ctx.fillStyle = lampGlow;
+    ctx.beginPath();
+    ctx.arc(31, 10, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f6d77d";
+    ctx.strokeStyle = "#6d5134";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(31, 10, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    const roofGradient = ctx.createLinearGradient(0, -49, 0, -2);
+    roofGradient.addColorStop(0, "#e57a53");
+    roofGradient.addColorStop(1, "#bd4f3d");
+    ctx.fillStyle = roofGradient;
+    ctx.strokeStyle = "#793c31";
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(-47, -3);
+    ctx.lineTo(0, -49);
+    ctx.lineTo(47, -3);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(255, 214, 148, 0.6)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-11, -14);
-    ctx.quadraticCurveTo(-14, 4, -4, 17);
-    ctx.stroke();
-
-    ctx.fillStyle = "#17352b";
-    ctx.beginPath();
-    ctx.arc(-7, -1, 2.7, 0, Math.PI * 2);
-    ctx.arc(8, -1, 2.7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#7e3b22";
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(1, 4, 5, 0.15, Math.PI - 0.15);
-    ctx.stroke();
-
-    ctx.fillStyle = "#76bd5d";
-    for (let i = 0; i < 5; i += 1) {
-      ctx.save();
-      ctx.rotate(-0.85 + i * 0.39);
+    ctx.strokeStyle = "rgba(255, 217, 177, 0.36)";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i += 1) {
+      const lineY = -10 - i * 10;
+      const halfWidth = 39 - i * 9;
       ctx.beginPath();
-      ctx.ellipse(0, -32, 6, 17, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      ctx.moveTo(-halfWidth, lineY);
+      ctx.lineTo(halfWidth, lineY);
+      ctx.stroke();
     }
-    ctx.restore();
+
+    ctx.strokeStyle = "#71372e";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-47, -3);
+    ctx.lineTo(47, -3);
+    ctx.stroke();
+
+    const smokeDrift = Math.sin(state.time * 1.8) * 2;
+    ctx.fillStyle = "rgba(241, 240, 221, 0.34)";
+    ctx.beginPath();
+    ctx.arc(26 + smokeDrift, -50, 4.5, 0, Math.PI * 2);
+    ctx.arc(31 + smokeDrift * 1.4, -59, 6, 0, Math.PI * 2);
+    ctx.arc(25 + smokeDrift * 1.8, -69, 7, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
