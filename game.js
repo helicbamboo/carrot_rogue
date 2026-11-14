@@ -56,15 +56,15 @@
   const HEIGHT = 640;
   const MAX_LIVES = 10;
   const MAX_WAVES = 8;
-  const TOWER_COST = 55;
-  const TOWER_RANGE = 180;
+  const AUTO_START_DELAY = 3;
+  const TOWER_COST = 100;
+  const TOWER_RANGE = 150;
   const CELL_SIZE = 50;
   const GRID_COLUMNS = 20;
   const GRID_ROWS = 12;
   const GRID_ORIGIN_X = 0;
   const GRID_ORIGIN_Y = (HEIGHT - GRID_ROWS * CELL_SIZE) / 2;
   const HOUSE_CELL = { col: 18, row: 10 };
-  const STARTING_TOWER_CELL = { col: 5, row: 5 };
 
   function getCellId(col, row) {
     return `cell-${col}-${row}`;
@@ -141,6 +141,33 @@
     pathSegments.push({ start, end, length, from: pathLength });
     pathLength += length;
   }
+
+  function getClosestPathDistance(x, y) {
+    let closestDistance = 0;
+    let bestDistanceSquared = Infinity;
+    pathSegments.forEach((segment) => {
+      const dx = segment.end.x - segment.start.x;
+      const dy = segment.end.y - segment.start.y;
+      const t = Math.max(
+        0,
+        Math.min(1, ((x - segment.start.x) * dx + (y - segment.start.y) * dy) / segment.length ** 2),
+      );
+      const pointX = segment.start.x + dx * t;
+      const pointY = segment.start.y + dy * t;
+      const distanceSquared = (x - pointX) ** 2 + (y - pointY) ** 2;
+      if (distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared;
+        closestDistance = segment.from + segment.length * t;
+      }
+    });
+    return closestDistance;
+  }
+
+  const houseCenter = getCellCenter(HOUSE_CELL.col, HOUSE_CELL.row);
+  const HOUSE_ENTRY_DISTANCE = Math.max(
+    0,
+    getClosestPathDistance(houseCenter.x, houseCenter.y) - CELL_SIZE * 0.55,
+  );
 
   const enemyTypes = {
     normal: {
@@ -331,17 +358,20 @@
     lives: MAX_LIVES,
     coins: 160,
     kills: 0,
-    selectedTowerId: "tower-1",
+    selectedTowerId: null,
     buildCellId: null,
     focusedEnemyId: null,
     time: 0,
     spawnQueue: [],
-    spawnTimer: 0,
+    waveElapsed: 0,
+    autoStartRemaining: AUTO_START_DELAY,
+    autoStartActive: true,
+    countdownSecond: null,
     betweenWaves: false,
     upgradePending: false,
     currentChoices: [],
     selectedAffixId: null,
-    upgradeTargetId: "tower-1",
+    upgradeTargetId: null,
     lastTime: 0,
     runActive: true,
     soundEnabled: true,
@@ -408,24 +438,26 @@
       lives: MAX_LIVES,
       coins: 160,
       kills: 0,
-      selectedTowerId: "tower-1",
+      selectedTowerId: null,
       buildCellId: null,
       focusedEnemyId: null,
       time: 0,
       spawnQueue: [],
-      spawnTimer: 0,
+      waveElapsed: 0,
+      autoStartRemaining: AUTO_START_DELAY,
+      autoStartActive: true,
+      countdownSecond: null,
       betweenWaves: false,
       upgradePending: false,
       currentChoices: [],
       selectedAffixId: null,
-      upgradeTargetId: "tower-1",
+      upgradeTargetId: null,
       lastTime: performance.now(),
       runActive: true,
       paused: false,
       speed: 1,
       ambienceSeed: 71,
     });
-    addTower(getCellId(STARTING_TOWER_CELL.col, STARTING_TOWER_CELL.row), true);
     makeDecorations();
     closeModal(ui.upgradeModal);
     closeModal(ui.endModal);
@@ -608,9 +640,12 @@
   }
 
   function startNextWave() {
-    if (state.mode === "ended" || state.upgradePending) return;
+    if (state.mode !== "prep" || state.upgradePending) return;
     if (state.wave >= MAX_WAVES) return;
     closeModal(ui.upgradeModal);
+    state.autoStartActive = false;
+    state.autoStartRemaining = 0;
+    state.countdownSecond = null;
     state.betweenWaves = false;
     state.upgradePending = false;
     state.paused = false;
@@ -619,10 +654,18 @@
     closeTowerPicker(false);
     state.focusedEnemyId = null;
     state.spawnQueue = buildWaveQueue(state.wave);
-    state.spawnTimer = 0.35;
+    state.waveElapsed = 0;
     showWaveBanner(state.wave);
     updateUI();
     playSound("wave");
+  }
+
+  function beginAutoStartCountdown() {
+    if (state.mode !== "prep" || state.upgradePending || state.wave >= MAX_WAVES) return;
+    state.autoStartActive = true;
+    state.autoStartRemaining = AUTO_START_DELAY;
+    state.countdownSecond = null;
+    updateUI();
   }
 
   function buildWaveQueue(wave) {
@@ -643,14 +686,38 @@
     }
 
     const queue = [];
-    let accumulated = 0;
-    sequence.forEach((type, index) => {
-      const baseGap = type === "tank" ? 1.1 : type === "fast" ? 0.56 : 0.75;
-      const wavePace = Math.max(0.72, 1 - (wave - 1) * 0.035);
-      accumulated += baseGap * wavePace;
-      const clusterGap = index > 0 && index % 6 === 0 ? 0.75 : 0;
-      queue.push({ type, delay: accumulated + clusterGap });
-    });
+    const minGroupSize = wave <= 2 ? 2 : wave <= 5 ? 3 : 4;
+    const maxGroupSize = wave <= 2 ? 3 : wave <= 5 ? 4 : 5;
+    const wavePace = Math.max(0.78, 1 - (wave - 1) * 0.025);
+    const memberGap = Math.max(0.1, 0.22 - (wave - 1) * 0.008);
+    let groupStart = 0.35;
+    let sequenceIndex = 0;
+
+    // Enemies arrive in small squads instead of being spread into a long trickle.
+    while (sequenceIndex < sequence.length) {
+      const sizeRoll = seededRandom(state.ambienceSeed + wave * 211 + sequenceIndex * 7.31);
+      const remaining = sequence.length - sequenceIndex;
+      let groupSize = Math.min(
+        remaining,
+        minGroupSize + Math.floor(sizeRoll * (maxGroupSize - minGroupSize + 1)),
+      );
+      const trailing = remaining - groupSize;
+      if (trailing > 0 && trailing < minGroupSize) {
+        groupSize = remaining >= minGroupSize * 2 ? remaining - minGroupSize : remaining;
+      }
+      const gapRoll = seededRandom(state.ambienceSeed + wave * 307 + sequenceIndex * 11.73);
+      const squadGap = (2.8 + gapRoll * 1.2) * wavePace;
+
+      for (let memberIndex = 0; memberIndex < groupSize; memberIndex += 1) {
+        queue.push({
+          type: sequence[sequenceIndex + memberIndex],
+          delay: groupStart + memberIndex * memberGap,
+        });
+      }
+
+      groupStart += (groupSize - 1) * memberGap + squadGap;
+      sequenceIndex += groupSize;
+    }
     return queue;
   }
 
@@ -680,7 +747,19 @@
     nextEnemyId += 1;
   }
 
-  function update(dt) {
+  function updateAutoStartCountdown(realDt) {
+    if (state.mode !== "prep" || state.upgradePending || !state.autoStartActive) return;
+    state.autoStartRemaining = Math.max(0, state.autoStartRemaining - realDt);
+    const nextSecond = Math.max(0, Math.ceil(state.autoStartRemaining));
+    if (nextSecond !== state.countdownSecond) {
+      state.countdownSecond = nextSecond;
+      updateCountdownUI();
+    }
+    if (state.autoStartRemaining <= 0) startNextWave();
+  }
+
+  function update(dt, realDt) {
+    updateAutoStartCountdown(realDt);
     state.time += dt;
     updateParticles(dt);
     updateFloatingTexts(dt);
@@ -699,13 +778,13 @@
       return;
     }
 
-    if (state.spawnQueue.length > 0) {
-      state.spawnTimer -= dt;
-      while (state.spawnQueue.length > 0 && state.spawnTimer <= 0) {
-        const next = state.spawnQueue.shift();
-        state.spawnTimer += Math.max(0.3, next.delay - 0.22);
-        spawnEnemy(next.type);
-      }
+    state.waveElapsed += dt;
+    while (
+      state.spawnQueue.length > 0 &&
+      state.spawnQueue[0].delay <= state.waveElapsed
+    ) {
+      const next = state.spawnQueue.shift();
+      spawnEnemy(next.type);
     }
 
     ui.enemyCounter.textContent = `${enemies.length} 只怪物在场`;
@@ -726,15 +805,17 @@
       if (enemy.dead) return;
       const oldDistance = enemy.distance;
       enemy.distance += enemy.speed * dt;
+      enemy.distance = Math.min(enemy.distance, HOUSE_ENTRY_DISTANCE);
       enemy.wobble += dt * (enemy.type === "fast" ? 8 : 4);
       enemy.hitFlash = Math.max(0, enemy.hitFlash - dt * 4.5);
       updateEnemyPosition(enemy);
 
-      if (enemy.distance >= pathLength) {
+      if (enemy.distance >= HOUSE_ENTRY_DISTANCE) {
         enemy.leaked = true;
         enemy.dead = true;
         state.lives = Math.max(0, state.lives - enemy.lifeCost);
-        const end = getPointAtDistance(pathLength - 10);
+        updateUI();
+        const end = getPointAtDistance(HOUSE_ENTRY_DISTANCE);
         floatingTexts.push({
           x: end.x,
           y: end.y - 28,
@@ -913,6 +994,9 @@
     state.focusedEnemyId = null;
     closeTowerPicker(false);
     state.betweenWaves = true;
+    state.autoStartActive = false;
+    state.autoStartRemaining = AUTO_START_DELAY;
+    state.countdownSecond = null;
     state.spawnQueue = [];
     enemies = [];
     projectiles = [];
@@ -924,8 +1008,8 @@
     }
 
     if (towers.length === 0) {
-      showToast("没有炮塔可强化，直接进入整备阶段");
-      updateUI();
+      showToast("没有炮塔可强化，3 秒后自动开始下一波");
+      beginAutoStartCountdown();
       return;
     }
 
@@ -971,7 +1055,8 @@
     ui.upgradeOptions.hidden = false;
     ui.upgradeLaterButton.hidden = false;
     ui.nextWaveButton.hidden = true;
-    ui.nextWaveButtonText.textContent = `开始第 ${state.wave + 1} 波`;
+    ui.nextWaveButton.disabled = true;
+    ui.nextWaveButtonText.textContent = `下一波将在 ${AUTO_START_DELAY} 秒后开始`;
     renderUpgradeTargets();
     renderUpgradeOptions();
     openModal(ui.upgradeModal);
@@ -1036,11 +1121,15 @@
     ui.upgradeOptions.hidden = true;
     ui.upgradeLaterButton.hidden = true;
     ui.nextWaveButton.hidden = false;
+    ui.nextWaveButton.disabled = true;
     ui.upgradeResult.hidden = false;
     ui.resultTitle.textContent = `${affix.name} 已装配到炮台`;
     ui.resultCopy.textContent = describeStatChange(before, after);
-    ui.nextWaveButtonText.textContent = `开始第 ${state.wave + 1} 波`;
+    state.upgradePending = false;
+    closeModal(ui.upgradeModal);
+    beginAutoStartCountdown();
     burst(target.x, target.y, affix.accent, 22, 100);
+    showToast(`${affix.name} 已装配，${AUTO_START_DELAY} 秒后自动开始下一波`);
     playSound("upgrade");
     updateUI();
   }
@@ -1079,27 +1168,21 @@
     return changes.join("  ·  ") || "炮塔属性已提升";
   }
 
-  function continueAfterUpgrade() {
-    if (!state.upgradePending) return;
-    state.upgradePending = false;
-    closeModal(ui.upgradeModal);
-    updateUI();
-    startNextWave();
-  }
-
   function keepUpgradeForLater() {
     if (!state.upgradePending) return;
     state.upgradePending = false;
     state.currentChoices = [];
     closeModal(ui.upgradeModal);
-    updateUI();
-    showToast("已跳过本次强化，下一波可随时开始");
+    beginAutoStartCountdown();
+    showToast("已跳过本次强化，3 秒后自动开始下一波");
   }
 
   function endGame(won) {
     if (state.mode === "ended") return;
     state.mode = "ended";
     state.paused = false;
+    state.autoStartActive = false;
+    state.autoStartRemaining = 0;
     state.focusedEnemyId = null;
     state.runActive = false;
     closeTowerPicker(false);
@@ -1168,14 +1251,12 @@
       ui.statusDot.classList.remove("is-live");
     } else {
       const nextWave = Math.min(state.wave + 1, MAX_WAVES);
-      ui.stageStatus.textContent = state.wave > 0 ? "整备阶段" : "防线准备中";
+      ui.stageStatus.textContent = state.wave > 0 ? "整备倒计时" : "防线准备中";
       ui.waveTitle.textContent = state.wave > 0 ? "下一波来袭" : "整备阶段";
-      ui.missionCopy.textContent =
-        state.wave > 0
-          ? `第 ${nextWave} 波即将抵达。可以建造炮塔或调整防线。`
-          : "第 1 波即将抵达。先部署炮塔，再开始守卫小屋。";
-      ui.waveButton.disabled = false;
-      ui.waveButtonText.textContent = `开始第 ${nextWave} 波`;
+      ui.missionCopy.textContent = `第 ${nextWave} 波将在 ${AUTO_START_DELAY} 秒后自动抵达。可以继续建造炮塔。`;
+      ui.waveButton.disabled = true;
+      ui.waveButtonText.textContent = `第 ${nextWave} 波将在 ${AUTO_START_DELAY} 秒后开始`;
+      updateCountdownUI();
       ui.statusDot.classList.remove("is-live");
     }
 
@@ -1187,6 +1268,25 @@
     updateTowerPickerState();
     renderWaveTrack();
     renderTowerList();
+  }
+
+  function updateCountdownUI() {
+    if (state.mode !== "prep" || state.upgradePending || !state.autoStartActive) return;
+    const nextWave = Math.min(state.wave + 1, MAX_WAVES);
+    const seconds = Math.max(0, Math.ceil(state.autoStartRemaining));
+    state.countdownSecond = seconds;
+    const countdownText =
+      seconds > 0
+        ? `第 ${nextWave} 波将在 ${seconds} 秒后开始`
+        : `第 ${nextWave} 波正在开始`;
+    ui.waveButtonText.textContent = countdownText;
+    ui.missionCopy.textContent =
+      seconds > 0
+        ? `第 ${nextWave} 波将在 ${seconds} 秒后自动抵达。可以继续建造炮塔。`
+        : `第 ${nextWave} 波正在抵达。`;
+    if (!ui.nextWaveButton.hidden) {
+      ui.nextWaveButtonText.textContent = countdownText;
+    }
   }
 
   function updatePlaybackControls() {
@@ -2299,18 +2399,16 @@
   }
 
   function gameLoop(timestamp) {
-    const dt = Math.min(0.035, Math.max(0, (timestamp - state.lastTime) / 1000));
+    const realDt = Math.max(0, (timestamp - state.lastTime) / 1000);
+    const dt = Math.min(0.035, realDt);
     state.lastTime = timestamp;
     if (!state.paused) {
-      update(dt * state.speed);
+      update(dt * state.speed, realDt);
     }
     render();
     window.requestAnimationFrame(gameLoop);
   }
 
-  ui.waveButton.addEventListener("click", () => {
-    if (state.mode === "prep" && !state.upgradePending) startNextWave();
-  });
   ui.towerPickerClose.addEventListener("click", () => {
     closeTowerPicker();
     playSound("click");
@@ -2318,7 +2416,6 @@
   ui.towerBuildButton.addEventListener("click", () => {
     if (state.buildCellId) placeTower(state.buildCellId);
   });
-  ui.nextWaveButton.addEventListener("click", continueAfterUpgrade);
   ui.upgradeLaterButton.addEventListener("click", keepUpgradeForLater);
   ui.restartButton.addEventListener("click", resetGame);
   ui.pauseButton.addEventListener("click", togglePause);
@@ -2349,11 +2446,9 @@
     const isInteractive = ["BUTTON", "INPUT", "SELECT", "TEXTAREA", "A"].includes(targetTag);
     if (event.code === "Space") {
       if (isInteractive) return;
-      event.preventDefault();
       if (state.mode === "wave" && !state.upgradePending) {
+        event.preventDefault();
         togglePause();
-      } else if (state.mode === "prep" && !state.upgradePending) {
-        startNextWave();
       }
     }
     if (event.key.toLowerCase() === "p") {

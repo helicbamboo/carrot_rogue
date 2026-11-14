@@ -157,10 +157,10 @@
                 </span>
                 <span class="tower-option__copy">
                   <strong>守夜炮塔</strong>
-                  <small>单体攻击 · 射程 180</small>
+                  <small>单体攻击 · 射程 150</small>
                 </span>
                 <span class="tower-option__price">
-                  <b>55</b>
+                  <b>100</b>
                   <small>金币</small>
                 </span>
               </button>
@@ -220,13 +220,13 @@
               第 1 波即将抵达。先部署炮塔，再开始守卫小屋。
             </div>
 
-            <button class="primary-button" id="waveButton" type="button">
+            <button class="primary-button" id="waveButton" type="button" disabled>
               <span class="button-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="m9 6 9 6-9 6V6Z"></path>
                 </svg>
               </span>
-              <span id="waveButtonText">开始第 1 波</span>
+              <span id="waveButtonText">第 1 波将在 3 秒后开始</span>
             </button>
           </section>
 
@@ -236,7 +236,7 @@
                 <span class="section-kicker">防御工事</span>
                 <h2>炮塔防线</h2>
               </div>
-              <span class="tower-count" id="towerCount">1 座</span>
+              <span class="tower-count" id="towerCount">0 座</span>
             </div>
 
             <div class="build-guide">
@@ -319,8 +319,8 @@
           <button class="secondary-button" id="upgradeLaterButton" type="button">
             跳过本次强化
           </button>
-          <button class="primary-button primary-button--dialog" id="nextWaveButton" type="button" hidden>
-            <span id="nextWaveButtonText">开始第 2 波</span>
+          <button class="primary-button primary-button--dialog" id="nextWaveButton" type="button" disabled hidden>
+            <span id="nextWaveButtonText">下一波将在 3 秒后开始</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m9 6 9 6-9 6V6Z"></path>
             </svg>
