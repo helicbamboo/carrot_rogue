@@ -28,6 +28,7 @@
     towerInspectorContent: document.getElementById("towerInspectorContent"),
     towerHeadCard: document.getElementById("towerHeadCard"),
     towerHeadCardContent: document.getElementById("towerHeadCardContent"),
+    towerDemolishButton: document.getElementById("towerDemolishButton"),
     towerPicker: document.getElementById("towerPicker"),
     towerPickerClose: document.getElementById("towerPickerClose"),
     towerBuildButtons: [...document.querySelectorAll("[data-tower-type]")],
@@ -61,6 +62,8 @@
   const WAVE_HEALTH_QUADRATIC_GROWTH = 0.01;
   const TOWER_RANGE = 140;
   const FROST_TOWER_RANGE = 145;
+  const SUN_TOWER_RANGE = 120;
+  const SUN_PULSE_EXPANSION_SPEED = 250;
   const PROJECTILE_SCREEN_MARGIN = 20;
   const FROST_SLOW_DURATION = 3;
   const FROST_FREEZE_DURATION = 0.4;
@@ -84,6 +87,7 @@
       projectileColor: "#ffad3d",
       muzzleColor: "#ffbd55",
       frostSlowFactor: 1,
+      usesProjectile: true,
     },
     frost: {
       key: "frost",
@@ -96,6 +100,19 @@
       projectileColor: "#7fe7f2",
       muzzleColor: "#c9fbff",
       frostSlowFactor: 0.75,
+      usesProjectile: true,
+    },
+    sun: {
+      key: "sun",
+      name: "太阳塔",
+      description: "范围脉冲",
+      damage: 10,
+      range: SUN_TOWER_RANGE,
+      interval: 1.25,
+      projectileColor: "#ffd45c",
+      muzzleColor: "#fff0a4",
+      frostSlowFactor: 1,
+      usesProjectile: false,
     },
   };
 
@@ -302,6 +319,8 @@
       apply: (tower) => {
         tower.interval *= 0.82;
       },
+      stackable: true,
+      maxStacks: 2,
       icon: "bolt",
       accent: "#efd468",
       tint: "rgba(244, 206, 88, 0.16)",
@@ -315,6 +334,8 @@
       apply: (tower) => {
         tower.range += 35;
       },
+      stackable: true,
+      maxStacks: 2,
       icon: "scope",
       accent: "#b8db9f",
       tint: "rgba(127, 200, 107, 0.15)",
@@ -324,10 +345,12 @@
       name: "精准棱镜",
       rarity: "稀有",
       description: "校准折射镜片，命中要害时造成双倍伤害。",
-      effectText: () => "暴击率 +18%",
+      effectText: () => "暴击率 +20%",
       apply: (tower) => {
-        tower.critChance = Math.min(0.65, tower.critChance + 0.18);
+        tower.critChance = Math.min(0.65, tower.critChance + 0.2);
       },
+      stackable: true,
+      maxStacks: 3,
       icon: "prism",
       accent: "#9ed8de",
       tint: "rgba(84, 169, 200, 0.15)",
@@ -341,7 +364,6 @@
       apply: (tower) => {
         tower.critSplashRadius = 20;
       },
-      unique: true,
       icon: "blast",
       accent: "#f0be78",
       tint: "rgba(240, 165, 78, 0.15)",
@@ -355,7 +377,7 @@
       apply: (tower) => {
         tower.pierceChance = 0.5;
       },
-      unique: true,
+      projectileOnly: true,
       icon: "pierce",
       accent: "#9ed8c9",
       tint: "rgba(84, 200, 167, 0.14)",
@@ -396,7 +418,6 @@
         tower.frostSlowFactor = 0.6;
       },
       requiredTowerType: "frost",
-      unique: true,
       icon: "snow",
       accent: "#83dce8",
       tint: "rgba(75, 186, 205, 0.17)",
@@ -411,7 +432,6 @@
         tower.freezeOnSlowed = true;
       },
       requiredTowerType: "frost",
-      unique: true,
       icon: "freeze",
       accent: "#9cecff",
       tint: "rgba(96, 205, 231, 0.18)",
@@ -420,12 +440,14 @@
       id: "cold-priority",
       name: "冷点排序",
       rarity: "精良",
-      description: "优先处理尚未受到冰冻影响的敌人，并加快对这些目标的开火速度。",
-      effectText: () => "优先攻击未受冰冻目标，攻速 +20%",
+      description: "调整索敌节拍，更快处理尚未受到冰冻影响的敌人。",
+      effectText: (tower) =>
+        tower?.type === "sun"
+          ? "存在未冰冻目标时攻速 +20%"
+          : "优先攻击未受冰冻目标，攻速 +20%",
       apply: (tower) => {
         tower.prioritizeUnfrozen = true;
       },
-      unique: true,
       icon: "priority",
       accent: "#a9d5c4",
       tint: "rgba(109, 192, 164, 0.15)",
@@ -468,6 +490,7 @@
     coins: 290,
     kills: 0,
     selectedTowerId: null,
+    towerDemolishVisible: false,
     buildCellId: null,
     focusedEnemyId: null,
     time: 0,
@@ -501,6 +524,7 @@
   let projectiles = [];
   let particles = [];
   let splashWaves = [];
+  let sunPulses = [];
   let floatingTexts = [];
   let decorations = [];
   let towerSequence = 1;
@@ -570,6 +594,7 @@
     projectiles = [];
     particles = [];
     splashWaves = [];
+    sunPulses = [];
     floatingTexts = [];
     towerSequence = 1;
     nextEnemyId = 1;
@@ -580,6 +605,7 @@
       coins: 290,
       kills: 0,
       selectedTowerId: null,
+      towerDemolishVisible: false,
       buildCellId: null,
       focusedEnemyId: null,
       time: 0,
@@ -647,12 +673,30 @@
     };
     towerSequence += 1;
     towers.push(tower);
-    state.selectedTowerId = tower.id;
+    state.selectedTowerId = null;
+    state.towerDemolishVisible = false;
     return tower;
   }
 
   function getTower(id) {
     return towers.find((tower) => tower.id === id);
+  }
+
+  function demolishTower(towerId = state.selectedTowerId) {
+    const tower = getTower(towerId);
+    if (!tower || state.mode === "ended") return;
+
+    const towerName = tower.typeName;
+    towers = towers.filter((candidate) => candidate.id !== tower.id);
+    state.selectedTowerId = null;
+    state.towerDemolishVisible = false;
+    if (state.upgradeTargetId === tower.id) {
+      state.upgradeTargetId = null;
+    }
+    burst(tower.x, tower.y, "#c58d68", 12, 72);
+    updateUI();
+    showToast(`${towerName}已拆除，未返还金币`);
+    playSound("pop");
   }
 
   function isCellOccupied(cellId) {
@@ -754,6 +798,7 @@
 
     state.focusedEnemyId = null;
     state.selectedTowerId = null;
+    state.towerDemolishVisible = false;
     state.buildCellId = cellId;
     ui.towerPicker.style.visibility = "hidden";
     updateUI();
@@ -945,6 +990,7 @@
     state.time += dt;
     updateParticles(dt);
     updateSplashWaves(dt);
+    updateSunPulses(dt);
     updateFloatingTexts(dt);
 
     if (state.mode === "ended") {
@@ -955,8 +1001,9 @@
       if (state.mode === "prep") {
         towers.forEach((tower) => {
           tower.cooldown = Math.min(tower.interval, tower.cooldown + dt);
-          const target = findNearestTarget(tower);
-          if (target) {
+          const target =
+            tower.type === "sun" ? null : findNearestTarget(tower);
+          if (target && tower.type !== "sun") {
             const desired = Math.atan2(target.y - tower.y, target.x - tower.x);
             tower.angle = rotateToward(tower.angle, desired, dt * 2.8);
           }
@@ -1041,6 +1088,22 @@
     towers.forEach((tower) => {
       tower.cooldown -= dt;
       tower.recoil = Math.max(0, tower.recoil - dt * 5.8);
+
+      if (tower.type === "sun") {
+        const targets = getEnemiesInRange(tower);
+        tower.targetId = null;
+        if (targets.length > 0 && tower.cooldown <= 0) {
+          const coldPriorityBonus =
+            tower.prioritizeUnfrozen &&
+            targets.some((enemy) => !isEnemyFrostAffected(enemy));
+          fireSunTower(tower);
+          tower.cooldown = coldPriorityBonus
+            ? tower.interval / (1 + COLD_PRIORITY_ATTACK_SPEED_BONUS)
+            : tower.interval;
+        }
+        return;
+      }
+
       const target = findNearestTarget(tower);
       tower.targetId = target ? target.id : null;
 
@@ -1058,6 +1121,71 @@
         }
       }
     });
+  }
+
+  function fireSunTower(tower) {
+    const pulseDuration = tower.range / SUN_PULSE_EXPANSION_SPEED;
+    sunPulses.push({
+      x: tower.x,
+      y: tower.y,
+      radius: tower.range,
+      life: pulseDuration,
+      maxLife: pulseDuration,
+      tower,
+      resolved: false,
+    });
+
+    tower.recoil = 1;
+    playSound("shoot");
+  }
+
+  function resolveSunPulse(pulse) {
+    if (pulse.resolved || state.mode === "ended") {
+      pulse.resolved = true;
+      return;
+    }
+    pulse.resolved = true;
+
+    const tower = pulse.tower;
+    const targets = getEnemiesInRangeAt(
+      pulse.x,
+      pulse.y,
+      pulse.radius,
+    );
+    const criticalHits = [];
+    targets.forEach((enemy) => {
+      const crit = Math.random() < tower.critChance;
+      let damage = tower.damage;
+      if (enemy.hp / enemy.maxHp <= 0.4) damage *= 1 + tower.finisher;
+      if (crit) damage *= 2;
+
+      const pulseHit = {
+        towerId: tower.id,
+        sourceTower: tower,
+        damage,
+        crit,
+        type: "sun",
+      };
+      applyProjectileHit(pulseHit, enemy, false);
+      if (crit) {
+        criticalHits.push({
+          hit: pulseHit,
+          x: enemy.x,
+          y: enemy.y,
+          enemyId: enemy.id,
+        });
+      }
+    });
+
+    criticalHits.forEach(({ hit, x, y, enemyId }) => {
+      applyCriticalSplash(hit, x, y, enemyId, tower);
+    });
+
+    const anyCrit = criticalHits.length > 0;
+    if (anyCrit) {
+      shakeCanvas(2.5);
+      playSound("crit");
+    }
   }
 
   function fireTower(tower, target) {
@@ -1255,7 +1383,8 @@
   }
 
   function applyProjectileHit(projectile, enemy, applySplash = true) {
-    const tower = getTower(projectile.towerId);
+    if (!enemy || enemy.dead) return;
+    const tower = projectile.sourceTower || getTower(projectile.towerId);
     applyFrostHit(tower, enemy, projectile.crit);
     if (tower) {
       tower.damageDealt += Math.max(0, Math.min(enemy.hp, projectile.damage));
@@ -1269,20 +1398,31 @@
         ? projectile.crit
           ? "#eaffff"
           : "#7fe7f2"
-        : projectile.crit
-          ? "#fff0a5"
-          : "#f0a14b";
+        : projectile.type === "sun"
+          ? projectile.crit
+            ? "#fff5b8"
+            : "#ffca4a"
+          : projectile.crit
+            ? "#fff0a5"
+            : "#f0a14b";
     burst(hitX, hitY, hitColor, projectile.crit ? 14 : 8, 105);
     floatingTexts.push({
       x: hitX + (Math.random() - 0.5) * 12,
       y: hitY - enemy.radius - 6,
       text: `${Math.round(projectile.damage)}${projectile.crit ? "!" : ""}`,
-      color: projectile.crit ? "#fff0a5" : "#fff9e8",
+      color:
+        projectile.type === "sun"
+          ? projectile.crit
+            ? "#fff5b8"
+            : "#ffe08a"
+          : projectile.crit
+            ? "#fff0a5"
+            : "#fff9e8",
       life: 0.66,
       maxLife: 0.66,
       size: projectile.crit ? 15 : 12,
     });
-    if (projectile.crit) {
+    if (projectile.crit && projectile.type !== "sun") {
       playSound("hit");
       shakeCanvas(2.5);
     }
@@ -1406,6 +1546,18 @@
     return target;
   }
 
+  function getEnemiesInRange(tower) {
+    return getEnemiesInRangeAt(tower.x, tower.y, tower.range);
+  }
+
+  function getEnemiesInRangeAt(x, y, range) {
+    return enemies.filter((enemy) => {
+      if (enemy.dead) return false;
+      const distance = Math.hypot(enemy.x - x, enemy.y - y);
+      return distance <= range + enemy.radius * 0.25;
+    });
+  }
+
   function finishWave() {
     if (state.mode !== "wave") return;
     if (state.upgradePending) return;
@@ -1434,6 +1586,7 @@
     state.selectingUpgradeTarget = false;
     state.upgradeTargetId = null;
     state.selectedTowerId = null;
+    state.towerDemolishVisible = false;
     state.selectedAffixId = null;
     state.currentChoices = choices;
     playSound("clear");
@@ -1462,6 +1615,12 @@
     );
   }
 
+  function getTowerAffixStackCount(tower, affixId) {
+    if (!tower) return 0;
+    const ids = Array.isArray(tower.upgradeIds) ? tower.upgradeIds : [];
+    return ids.filter((id) => id === affixId).length;
+  }
+
   function canApplyAffixToTower(affix, tower) {
     if (!affix) return false;
     if (
@@ -1471,13 +1630,40 @@
     ) {
       return false;
     }
-    return !tower || !affix.unique || !towerHasAffix(tower, affix.id);
+    if (
+      affix.projectileOnly &&
+      tower &&
+      !getTowerType(tower).usesProjectile
+    ) {
+      return false;
+    }
+    if (!tower) return true;
+    if (affix.stackable) {
+      return (
+        !affix.maxStacks ||
+        getTowerAffixStackCount(tower, affix.id) < affix.maxStacks
+      );
+    }
+    return !towerHasAffix(tower, affix.id);
   }
 
   function hasEligibleTowerForAffix(affix) {
     if (!affix) return false;
     if (affix.global) return true;
     return towers.some((tower) => canApplyAffixToTower(affix, tower));
+  }
+
+  function getSelectedUpgradeAffix() {
+    return (
+      state.currentChoices.find((affix) => affix.id === state.selectedAffixId) ||
+      null
+    );
+  }
+
+  function canSelectTowerAsUpgradeTarget(tower) {
+    if (!state.selectingUpgradeTarget || !tower) return false;
+    const selectedAffix = getSelectedUpgradeAffix();
+    return !selectedAffix || canApplyAffixToTower(selectedAffix, tower);
   }
 
   function openUpgradeModal() {
@@ -1586,7 +1772,15 @@
           <span class="affix-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">${affixIcons[affix.icon]}</svg>
           </span>
-          <span class="affix-kind">${affix.global ? "全局词条" : "词条"}</span>
+          <span class="affix-kind">${
+            affix.global
+              ? "全局词条"
+              : affix.stackable
+                ? affix.maxStacks
+                  ? `可叠加 · 最多 ${affix.maxStacks} 层`
+                  : "可叠加词条"
+                : "词条"
+          }</span>
           <h3>${affix.name}</h3>
           <p>${affix.description}</p>
           <span class="upgrade-card__effect">${affix.effectText(target || null)}</span>
@@ -1634,6 +1828,7 @@
     state.upgradePanelMinimized = false;
     state.selectingUpgradeTarget = true;
     state.focusedEnemyId = null;
+    state.towerDemolishVisible = false;
     closeTowerPicker(false);
     closeModal(ui.upgradeModal);
     updateUI();
@@ -1662,17 +1857,22 @@
       (affix) => affix.id === state.selectedAffixId,
     );
     if (selectedAffix && !canApplyAffixToTower(selectedAffix, tower)) {
+      const projectileIncompatible =
+        selectedAffix.projectileOnly && !getTowerType(tower).usesProjectile;
       showToast(
-        selectedAffix.requiredTowerType &&
-          tower.type !== selectedAffix.requiredTowerType
-          ? `该词条仅能装配到${towerTypes[selectedAffix.requiredTowerType].name}`
-          : "该炮塔已经拥有这个唯一词条，请选择其他炮塔",
+        projectileIncompatible
+          ? "该词条仅能装配到发射子弹的炮塔"
+          : selectedAffix.requiredTowerType &&
+              tower.type !== selectedAffix.requiredTowerType
+            ? `该词条仅能装配到${towerTypes[selectedAffix.requiredTowerType].name}`
+            : "该炮塔已经拥有这个强化词条，请选择其他炮塔",
       );
       playSound("error");
       return;
     }
     state.upgradeTargetId = tower.id;
-    state.selectedTowerId = tower.id;
+    state.selectedTowerId = null;
+    state.towerDemolishVisible = false;
     state.selectingUpgradeTarget = false;
 
     if (state.selectedAffixId) {
@@ -1691,6 +1891,11 @@
     const affix = state.currentChoices.find((choice) => choice.id === affixId);
     const target = getTower(state.upgradeTargetId);
     if (!affix || (!target && !affix.global)) return;
+    if (target && !affix.global && !canApplyAffixToTower(affix, target)) {
+      showToast("该炮塔已经拥有这个强化词条");
+      playSound("error");
+      return;
+    }
 
     state.selectedAffixId = affixId;
     let resultTitle;
@@ -1830,6 +2035,7 @@
     state.currentChoices = [];
     state.selectedAffixId = null;
     state.upgradeTargetId = null;
+    state.towerDemolishVisible = false;
     closeTowerPicker(false);
     closeModal(ui.upgradeModal);
     updateUI();
@@ -1963,6 +2169,7 @@
     updateTowerPickerState();
     renderWaveTrack();
     renderTowerInspector();
+    renderTowerDemolishButton();
     renderTowerHeadCard();
   }
 
@@ -2173,10 +2380,15 @@
         <span class="tower-inspector__level">Lv.${tower.level}</span>
       </div>
       <div class="tower-inspector__stats">
-        <div><span>单发伤害</span><strong>${formatTowerStat(tower.damage)}</strong></div>
+        <div><span>${tower.type === "sun" ? "脉冲伤害" : "单发伤害"}</span><strong>${formatTowerStat(tower.damage)}</strong></div>
         <div><span>攻击间隔</span><strong>${tower.interval.toFixed(2)}s</strong></div>
         <div><span>射程</span><strong>${formatTowerStat(tower.range)}</strong></div>
         <div><span>暴击率</span><strong>${Math.round(tower.critChance * 100)}%</strong></div>
+        ${
+          tower.type === "sun"
+            ? '<div><span>攻击模式</span><strong>范围脉冲</strong></div>'
+            : ""
+        }
         ${
           tower.type === "frost"
             ? `<div><span>冰冻减速</span><strong>移动速度 ${Math.round(tower.frostSlowFactor * 100)}%</strong></div>`
@@ -2217,6 +2429,11 @@
         <div><span>射程</span><b>${formatTowerStat(tower.range)}</b></div>
         <div><span>暴击</span><b>${Math.round(tower.critChance * 100)}%</b></div>
         ${
+          tower.type === "sun"
+            ? '<div><span>模式</span><b>范围脉冲</b></div>'
+            : ""
+        }
+        ${
           tower.type === "frost"
             ? `<div><span>冰冻减速</span><b>移速 ${Math.round(tower.frostSlowFactor * 100)}%</b></div>`
             : ""
@@ -2229,6 +2446,52 @@
     positionTowerHeadCard(tower);
   }
 
+  function renderTowerDemolishButton(tower = getTower(state.selectedTowerId)) {
+    if (
+      !tower ||
+      !state.towerDemolishVisible ||
+      state.mode === "ended" ||
+      state.buildCellId ||
+      state.selectingUpgradeTarget
+    ) {
+      ui.towerDemolishButton.hidden = true;
+      delete ui.towerDemolishButton.dataset.towerId;
+      return;
+    }
+
+    ui.towerDemolishButton.hidden = false;
+    ui.towerDemolishButton.dataset.towerId = tower.id;
+    ui.towerDemolishButton.setAttribute(
+      "aria-label",
+      `拆除${tower.typeName}，不返还金币`,
+    );
+    positionTowerDemolishButton(tower);
+  }
+
+  function positionTowerDemolishButton(tower) {
+    if (!tower || ui.towerDemolishButton.hidden) return;
+    const frameWidth = canvasFrame.clientWidth;
+    const frameHeight = canvasFrame.clientHeight;
+    const canvasHeight = canvas.getBoundingClientRect().height;
+    const buttonWidth = ui.towerDemolishButton.offsetWidth;
+    const buttonHeight = ui.towerDemolishButton.offsetHeight;
+    const anchorX = (tower.x / WIDTH) * frameWidth;
+    const anchorY = (tower.y / HEIGHT) * frameHeight;
+    const edge = 6;
+    const towerBottomOffset = Math.max(20, (32 / HEIGHT) * canvasHeight);
+    const left = Math.max(
+      buttonWidth / 2 + edge,
+      Math.min(frameWidth - buttonWidth / 2 - edge, anchorX),
+    );
+    const top = Math.max(
+      edge,
+      Math.min(frameHeight - buttonHeight - edge, anchorY + towerBottomOffset),
+    );
+
+    ui.towerDemolishButton.style.left = `${Math.round(left)}px`;
+    ui.towerDemolishButton.style.top = `${Math.round(top)}px`;
+  }
+
   function positionTowerHeadCard(tower) {
     if (!tower || ui.towerHeadCard.hidden) return;
     const frameWidth = canvasFrame.clientWidth;
@@ -2237,6 +2500,9 @@
     const cardHeight = ui.towerHeadCard.offsetHeight;
     const anchorX = (tower.x / WIDTH) * frameWidth;
     const anchorY = (tower.y / HEIGHT) * frameHeight;
+    const demolishHeight = ui.towerDemolishButton.hidden
+      ? 0
+      : ui.towerDemolishButton.offsetHeight + 6;
     const edge = 8;
     const gap = 38;
     const cardLeft = Math.max(
@@ -2244,7 +2510,7 @@
       Math.min(frameWidth - cardWidth / 2 - edge, anchorX),
     );
     const aboveTop = anchorY - cardHeight - gap;
-    const belowTop = anchorY + gap;
+    const belowTop = anchorY + gap + demolishHeight;
     let cardTop;
 
     if (aboveTop >= edge) {
@@ -2408,6 +2674,17 @@
     splashWaves = splashWaves.filter((wave) => wave.life > 0);
   }
 
+  function updateSunPulses(dt) {
+    sunPulses.forEach((pulse) => {
+      pulse.life -= dt;
+      if (pulse.life <= 0 && !pulse.resolved) {
+        pulse.life = 0;
+        resolveSunPulse(pulse);
+      }
+    });
+    sunPulses = sunPulses.filter((pulse) => pulse.life > 0);
+  }
+
   function updateFloatingTexts(dt) {
     floatingTexts.forEach((text) => {
       text.life -= dt;
@@ -2435,6 +2712,7 @@
     drawTowers();
     drawEnemies();
     drawProjectiles();
+    drawSunPulses();
     drawSplashWaves();
     drawParticles();
     drawFloatingTexts();
@@ -2755,42 +3033,60 @@
       (!state.upgradePending ||
         state.selectingUpgradeTarget ||
         state.upgradePanelMinimized);
+    const showUpgradeTargetRing = canSelectTowerAsUpgradeTarget(tower);
     const isFrost = tower.type === "frost";
-    const palette = isFrost
+    const isSun = tower.type === "sun";
+    const palette = isSun
       ? {
-          base: "#285c67",
-          baseStroke: "#173f48",
-          platform: "#6fc3cc",
-          hub: "#173f49",
-          barrel: "#3b98a4",
-          barrelStroke: "#24616b",
-          barrelTip: "#c8f9fb",
-          muzzle: "#ecffff",
-          core: "#d8fbff",
-          coreStroke: "#4b8f99",
-          eye: "#163c46",
-          rangeFill: "rgba(76, 191, 207, 0.11)",
-          rangeStroke: "rgba(206, 250, 255, 0.86)",
+          base: "#704b27",
+          baseStroke: "#4b311b",
+          platform: "#e0a43b",
+          hub: "#9b5c24",
+          barrel: "#ef9b31",
+          barrelStroke: "#a35b24",
+          barrelTip: "#ffd463",
+          muzzle: "#fff4bf",
+          core: "#ffd45c",
+          coreStroke: "#b76820",
+          eye: "#6d3c16",
+          rangeFill: "rgba(255, 205, 74, 0.1)",
+          rangeStroke: "rgba(255, 241, 164, 0.9)",
         }
-      : {
-          base: "#315f42",
-          baseStroke: "#214a32",
-          platform: "#75b452",
-          hub: "#2a563c",
-          barrel: "#e28d35",
-          barrelStroke: "#9d5627",
-          barrelTip: "#f3bb5e",
-          muzzle: "#ffe3a0",
-          core: "#b9df78",
-          coreStroke: "#4a7b45",
-          eye: "#24492f",
-          rangeFill: "rgba(127, 200, 107, 0.09)",
-          rangeStroke: "rgba(255, 249, 232, 0.8)",
-        };
+      : isFrost
+        ? {
+            base: "#285c67",
+            baseStroke: "#173f48",
+            platform: "#6fc3cc",
+            hub: "#173f49",
+            barrel: "#3b98a4",
+            barrelStroke: "#24616b",
+            barrelTip: "#c8f9fb",
+            muzzle: "#ecffff",
+            core: "#d8fbff",
+            coreStroke: "#4b8f99",
+            eye: "#163c46",
+            rangeFill: "rgba(76, 191, 207, 0.11)",
+            rangeStroke: "rgba(206, 250, 255, 0.86)",
+          }
+        : {
+            base: "#315f42",
+            baseStroke: "#214a32",
+            platform: "#75b452",
+            hub: "#2a563c",
+            barrel: "#e28d35",
+            barrelStroke: "#9d5627",
+            barrelTip: "#f3bb5e",
+            muzzle: "#ffe3a0",
+            core: "#b9df78",
+            coreStroke: "#4a7b45",
+            eye: "#24492f",
+            rangeFill: "rgba(127, 200, 107, 0.09)",
+            rangeStroke: "rgba(255, 249, 232, 0.8)",
+          };
     ctx.save();
     ctx.translate(tower.x, tower.y);
 
-    if (state.selectingUpgradeTarget) {
+    if (showUpgradeTargetRing) {
       const pulse = 1.5 + Math.sin(state.time * 4.8) * 1.5;
       ctx.strokeStyle = "rgba(255, 242, 166, 0.92)";
       ctx.lineWidth = 2;
@@ -2840,54 +3136,83 @@
     ctx.arc(0, -1, 14, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.save();
-    ctx.rotate(tower.angle);
-    const recoilOffset = -tower.recoil * 4;
-    ctx.translate(recoilOffset, 0);
+    if (isSun) {
+      const pulseScale = 1 + tower.recoil * 0.08;
+      ctx.save();
+      ctx.scale(pulseScale, pulseScale);
 
-    ctx.fillStyle = palette.barrel;
-    ctx.strokeStyle = palette.barrelStroke;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.roundRect(1, -7, 29, 14, 5);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = palette.barrelTip;
-    ctx.beginPath();
-    ctx.roundRect(20, -4.5, 13, 9, 3);
-    ctx.fill();
-
-    ctx.fillStyle = palette.muzzle;
-    ctx.beginPath();
-    ctx.arc(27, 0, 3.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    ctx.fillStyle = palette.core;
-    ctx.beginPath();
-    ctx.arc(0, -2, 8.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = palette.coreStroke;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = palette.eye;
-    ctx.beginPath();
-    ctx.arc(-2.3, -4, 1.6, 0, Math.PI * 2);
-    ctx.arc(3.4, -4, 1.6, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (isFrost) {
-      ctx.strokeStyle = "rgba(226, 254, 255, 0.82)";
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = "round";
-      for (let index = 0; index < 3; index += 1) {
-        const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 3;
+      if (tower.recoil > 0) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = tower.recoil * 0.62;
+        ctx.fillStyle = "#ffc94d";
+        ctx.shadowColor = "#ffb52e";
+        ctx.shadowBlur = 18;
         ctx.beginPath();
-        ctx.moveTo(Math.cos(angle) * 4, -2 + Math.sin(angle) * 4);
-        ctx.lineTo(Math.cos(angle) * 8, -2 + Math.sin(angle) * 8);
-        ctx.stroke();
+        ctx.arc(0, -3, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.fillStyle = palette.core;
+      ctx.strokeStyle = palette.coreStroke;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, -3, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.rotate(tower.angle);
+      const recoilOffset = -tower.recoil * 4;
+      ctx.translate(recoilOffset, 0);
+
+      ctx.fillStyle = palette.barrel;
+      ctx.strokeStyle = palette.barrelStroke;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.roundRect(1, -7, 29, 14, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = palette.barrelTip;
+      ctx.beginPath();
+      ctx.roundRect(20, -4.5, 13, 9, 3);
+      ctx.fill();
+
+      ctx.fillStyle = palette.muzzle;
+      ctx.beginPath();
+      ctx.arc(27, 0, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = palette.core;
+      ctx.beginPath();
+      ctx.arc(0, -2, 8.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = palette.coreStroke;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = palette.eye;
+      ctx.beginPath();
+      ctx.arc(-2.3, -4, 1.6, 0, Math.PI * 2);
+      ctx.arc(3.4, -4, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (isFrost) {
+        ctx.strokeStyle = "rgba(226, 254, 255, 0.82)";
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = "round";
+        for (let index = 0; index < 3; index += 1) {
+          const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 3;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(angle) * 4, -2 + Math.sin(angle) * 4);
+          ctx.lineTo(Math.cos(angle) * 8, -2 + Math.sin(angle) * 8);
+          ctx.stroke();
+        }
       }
     }
 
@@ -3522,6 +3847,52 @@
     });
   }
 
+  function drawSunPulses() {
+    sunPulses.forEach((pulse) => {
+      const progress = 1 - pulse.life / pulse.maxLife;
+      const alpha = Math.max(0, pulse.life / pulse.maxLife);
+      const currentRadius = Math.max(1, pulse.radius * progress);
+
+      ctx.save();
+      ctx.translate(pulse.x, pulse.y);
+      ctx.globalCompositeOperation = "lighter";
+
+      const glow = ctx.createRadialGradient(
+        0,
+        0,
+        currentRadius * 0.15,
+        0,
+        0,
+        Math.max(currentRadius, 1),
+      );
+      glow.addColorStop(0, `rgba(255, 246, 170, ${0.22 * alpha})`);
+      glow.addColorStop(0.72, `rgba(255, 202, 66, ${0.16 * alpha})`);
+      glow.addColorStop(1, "rgba(255, 154, 42, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "#ffd45c";
+      ctx.shadowColor = "#ffb52e";
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 4.2 - progress * 1.7;
+      ctx.beginPath();
+      ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.strokeStyle = "#fff1a4";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, currentRadius * 0.86, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.restore();
+    });
+  }
+
   function drawFloatingTexts() {
     floatingTexts.forEach((text) => {
       ctx.save();
@@ -3631,6 +4002,7 @@
     if (enemy && state.mode === "wave") {
       closeTowerPicker(false);
       state.selectedTowerId = null;
+      state.towerDemolishVisible = false;
       state.focusedEnemyId = enemy.id;
       updateUI();
       showToast(`已锁定 ${enemy.name}`);
@@ -3642,6 +4014,7 @@
     if (tower) {
       closeTowerPicker(false);
       state.selectedTowerId = tower.id;
+      state.towerDemolishVisible = true;
       updateUI();
       playSound("click");
       return;
@@ -3650,6 +4023,7 @@
     if (state.mode === "ended") {
       closeTowerPicker(false);
       state.selectedTowerId = null;
+      state.towerDemolishVisible = false;
       state.focusedEnemyId = null;
       updateUI();
       return;
@@ -3660,6 +4034,7 @@
       closeTowerPicker(false);
       const hadFocusedEnemy = state.focusedEnemyId !== null;
       state.selectedTowerId = null;
+      state.towerDemolishVisible = false;
       state.focusedEnemyId = null;
       updateUI();
       if (hadFocusedEnemy) {
@@ -3673,6 +4048,7 @@
     if (towerInCell) {
       closeTowerPicker(false);
       state.selectedTowerId = towerInCell.id;
+      state.towerDemolishVisible = true;
       updateUI();
       playSound("click");
       return;
@@ -3681,6 +4057,7 @@
     if (pathCellKeys.has(cell.id)) {
       closeTowerPicker(false);
       state.selectedTowerId = null;
+      state.towerDemolishVisible = false;
       state.focusedEnemyId = null;
       updateUI();
       showToast("道路格不能建造");
@@ -3694,7 +4071,9 @@
   function handlePointerMove(event) {
     const point = screenToCanvas(event);
     if (state.selectingUpgradeTarget) {
-      const canUpgradeTarget = Boolean(findTowerAt(point.x, point.y));
+      const canUpgradeTarget = canSelectTowerAsUpgradeTarget(
+        findTowerAt(point.x, point.y),
+      );
       canvas.classList.remove("can-build", "can-target-enemy");
       canvas.classList.toggle("can-upgrade-target", canUpgradeTarget);
       return;
@@ -3830,6 +4209,9 @@
     closeTowerPicker();
     playSound("click");
   });
+  ui.towerDemolishButton.addEventListener("click", () => {
+    demolishTower(ui.towerDemolishButton.dataset.towerId);
+  });
   ui.towerBuildButtons.forEach((button) => {
     button.addEventListener("click", () => {
       if (!state.buildCellId) return;
@@ -3869,11 +4251,13 @@
   });
   window.addEventListener("resize", () => {
     positionTowerPicker();
+    positionTowerDemolishButton(getTower(state.selectedTowerId));
     positionTowerHeadCard(getTower(state.selectedTowerId));
   });
   if ("ResizeObserver" in window) {
     new ResizeObserver(() => {
       positionTowerPicker();
+      positionTowerDemolishButton(getTower(state.selectedTowerId));
       positionTowerHeadCard(getTower(state.selectedTowerId));
     }).observe(canvasFrame);
   }

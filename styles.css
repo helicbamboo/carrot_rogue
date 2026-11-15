@@ -593,11 +593,52 @@ svg {
   color: #f7d363;
 }
 
+.tower-demolish-button {
+  position: absolute;
+  z-index: 7;
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: #fff4e8;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  background: rgba(112, 43, 35, 0.94);
+  border: 1px solid rgba(255, 183, 159, 0.66);
+  border-radius: 5px;
+  box-shadow:
+    0 7px 16px rgba(41, 15, 12, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateX(-50%);
+}
+
+.tower-demolish-button:hover {
+  background: #983f34;
+  border-color: #ffc0a8;
+}
+
+.tower-demolish-button:active {
+  transform: translateX(-50%) translateY(1px);
+}
+
+.tower-demolish-button svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .tower-picker {
   --arrow-left: 50%;
   position: absolute;
   z-index: 7;
   width: min(252px, calc(100% - 16px));
+  max-height: calc(100% - 16px);
   padding: 10px;
   background: var(--cream);
   border: 1px solid rgba(24, 53, 41, 0.22);
@@ -701,6 +742,16 @@ svg {
   border-color: #669e9e;
 }
 
+.tower-option--sun {
+  background: #f7efd7;
+  border-color: #d8bb78;
+}
+
+.tower-option--sun:hover:not(:disabled) {
+  background: #f3e5bc;
+  border-color: #bd8f35;
+}
+
 .tower-option:active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -728,6 +779,12 @@ svg {
   color: #d8fbff;
   background: #2d6f7a;
   border-color: #79bec6;
+}
+
+.tower-option--sun .tower-option__icon {
+  color: #fff2a6;
+  background: #a86624;
+  border-color: #e5b447;
 }
 
 .tower-option__icon svg {
@@ -1917,6 +1974,47 @@ svg {
 
   .canvas-frame {
     overflow: hidden;
+  }
+
+  .tower-picker {
+    padding: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  .tower-picker::after {
+    display: none;
+  }
+
+  .tower-picker__head {
+    min-height: 24px;
+    padding-bottom: 5px;
+  }
+
+  .tower-option {
+    min-height: 50px;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 6px 7px;
+  }
+
+  .tower-option + .tower-option {
+    margin-top: 6px;
+  }
+
+  .tower-option__icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .tower-option__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tower-picker__note {
+    margin-top: 6px;
   }
 
   #gameCanvas {
