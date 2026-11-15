@@ -32,11 +32,11 @@
         <div class="hud" aria-label="游戏状态">
           <div class="hud-stat hud-stat--wave">
             <span class="hud-stat__label">波次</span>
-            <strong id="waveStat">0 / 8</strong>
+            <strong id="waveStat">0</strong>
           </div>
           <div class="hud-stat hud-stat--coins">
             <span class="coin-icon" aria-hidden="true">¥</span>
-            <strong id="coinStat">160</strong>
+            <strong id="coinStat">290</strong>
           </div>
           <button
             class="icon-button"
@@ -63,6 +63,35 @@
             </div>
             <div class="stage-tools">
               <span class="stage-topline__hint" id="enemyCounter">0 只怪物在场</span>
+              <button
+                class="upgrade-undo-button"
+                id="upgradeUndoButton"
+                type="button"
+                title="撤回已选择的词条"
+                hidden
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 7 4 12l5 5"></path>
+                  <path d="M5 12h8a6 6 0 0 1 6 6"></path>
+                </svg>
+                <span class="upgrade-undo-button__long">撤回词条</span>
+                <span class="upgrade-undo-button__short">撤回</span>
+              </button>
+              <button
+                class="upgrade-dock-button"
+                id="upgradeDockButton"
+                type="button"
+                aria-controls="upgradeModal"
+                aria-expanded="false"
+                title="展开待选词条"
+                hidden
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m12 3 2.3 5.3L20 10l-4.4 3.6.7 5.7-4.3-2.8-4.3 2.8.7-5.7L4 10l5.7-1.7L12 3Z"></path>
+                </svg>
+                <span class="upgrade-dock-button__long">词条待选</span>
+                <span class="upgrade-dock-button__short">词条</span>
+              </button>
               <span class="stage-tools__divider" aria-hidden="true"></span>
               <button
                 class="stage-control-button"
@@ -128,6 +157,15 @@
               aria-label="夜行防线战场，点击空闲草地建造炮塔，点击怪物可优先攻击"
             ></canvas>
             <div
+              class="tower-head-card"
+              id="towerHeadCard"
+              role="status"
+              aria-live="polite"
+              hidden
+            >
+              <div id="towerHeadCardContent"></div>
+            </div>
+            <div
               class="tower-picker"
               id="towerPicker"
               role="dialog"
@@ -147,7 +185,11 @@
                   </svg>
                 </button>
               </div>
-              <button class="tower-option" id="towerBuildButton" type="button">
+              <button
+                class="tower-option"
+                type="button"
+                data-tower-type="sentry"
+              >
                 <span class="tower-option__icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <path d="M12 21v-7"></path>
@@ -157,10 +199,30 @@
                 </span>
                 <span class="tower-option__copy">
                   <strong>守夜炮塔</strong>
-                  <small>单体攻击 · 射程 150</small>
+                  <small>单体攻击 · 射程 140</small>
                 </span>
                 <span class="tower-option__price">
-                  <b>100</b>
+                  <b data-tower-price>150</b>
+                  <small>金币</small>
+                </span>
+              </button>
+              <button
+                class="tower-option tower-option--frost"
+                type="button"
+                data-tower-type="frost"
+              >
+                <span class="tower-option__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2v20M4 7l16 10M20 7 4 17"></path>
+                    <path d="m9 4 3 3 3-3M9 20l3-3 3 3"></path>
+                  </svg>
+                </span>
+                <span class="tower-option__copy">
+                  <strong>冰冻炮台</strong>
+                  <small>单体减速 · 射程 145</small>
+                </span>
+                <span class="tower-option__price">
+                  <b data-tower-price>150</b>
                   <small>金币</small>
                 </span>
               </button>
@@ -173,19 +235,6 @@
               aria-label="小屋生命 10"
             >
               <strong id="lifeStat">10</strong>
-            </div>
-            <div
-              class="pause-overlay"
-              id="pauseOverlay"
-              aria-live="polite"
-              aria-hidden="true"
-            >
-              <span class="pause-overlay__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M8 6v12M16 6v12"></path>
-                </svg>
-              </span>
-              <strong>战斗暂停</strong>
             </div>
             <div class="wave-banner" id="waveBanner" aria-live="polite">
               <span>WAVE</span>
@@ -214,19 +263,19 @@
               <span class="wave-badge" id="waveBadge">ROUND 0</span>
             </div>
 
-            <div class="wave-track" id="waveTrack" aria-label="波次进度"></div>
+            <div class="wave-track" id="waveTrack" aria-label="无尽波次进度"></div>
 
             <div class="mission-copy" id="missionCopy">
-              第 1 波即将抵达。先部署炮塔，再开始守卫小屋。
+              部署炮塔后，点击下方按钮开始第 1 波。
             </div>
 
-            <button class="primary-button" id="waveButton" type="button" disabled>
+            <button class="primary-button" id="waveButton" type="button">
               <span class="button-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="m9 6 9 6-9 6V6Z"></path>
                 </svg>
               </span>
-              <span id="waveButtonText">第 1 波将在 3 秒后开始</span>
+              <span id="waveButtonText">开始第 1 波</span>
             </button>
           </section>
 
@@ -247,7 +296,14 @@
               </span>
             </div>
 
-            <div class="tower-list" id="towerList"></div>
+            <div
+              class="tower-inspector"
+              id="towerInspector"
+              aria-live="polite"
+              hidden
+            >
+              <div id="towerInspectorContent"></div>
+            </div>
           </section>
 
           <section class="panel-section intel-panel">
@@ -261,17 +317,17 @@
               <div class="enemy-row">
                 <span class="enemy-swatch enemy-swatch--normal"></span>
                 <span><strong>团子怪</strong><small>均衡 · 普通速度</small></span>
-                <b>HP 72</b>
+                <b>HP 72 起</b>
               </div>
               <div class="enemy-row">
                 <span class="enemy-swatch enemy-swatch--fast"></span>
                 <span><strong>风铃怪</strong><small>快速 · 生命较低</small></span>
-                <b>HP 38</b>
+                <b>HP 38 起</b>
               </div>
               <div class="enemy-row">
                 <span class="enemy-swatch enemy-swatch--tank"></span>
                 <span><strong>石甲怪</strong><small>缓慢 · 生命较高</small></span>
-                <b>HP 230</b>
+                <b>HP 230 起</b>
               </div>
             </div>
           </section>
@@ -293,14 +349,25 @@
               <path d="m12 3 2.3 5.3L20 10l-4.4 3.6.7 5.7-4.3-2.8-4.3 2.8.7-5.7L4 10l5.7-1.7L12 3Z"></path>
             </svg>
           </span>
-          <div>
+          <div class="upgrade-dialog__copy">
             <span class="section-kicker">波次清剿完成</span>
             <h2 id="upgradeTitle">为一座炮塔选择词条</h2>
-            <p>先锁定一座炮塔，再从三个随机强化中选择一个。</p>
+            <p>先选择词条或强化目标；进入地图选择时，面板会暂时收起。</p>
           </div>
+          <button
+            class="upgrade-hide-button"
+            id="upgradeHideButton"
+            type="button"
+            title="收起面板，查看战场"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+            <span>隐藏</span>
+          </button>
         </div>
 
-        <div class="target-section">
+        <div class="target-section" id="upgradeTargetSection">
           <span class="target-label">强化目标</span>
           <div class="target-list" id="upgradeTargets"></div>
         </div>
@@ -326,21 +393,6 @@
             </svg>
           </button>
         </div>
-      </section>
-    </div>
-
-    <div class="modal-layer" id="endModal" aria-hidden="true">
-      <section class="end-dialog" role="dialog" aria-modal="true" aria-labelledby="endTitle">
-        <span class="end-dialog__mark" id="endMark" aria-hidden="true"></span>
-        <span class="section-kicker" id="endKicker">防线战报</span>
-        <h2 id="endTitle">小屋守住了</h2>
-        <p id="endCopy"></p>
-        <div class="end-stats">
-          <span><small>抵达波次</small><strong id="endWave">8</strong></span>
-          <span><small>击败怪物</small><strong id="endKills">0</strong></span>
-          <span><small>炮塔数量</small><strong id="endTowers">1</strong></span>
-        </div>
-        <button class="primary-button" id="restartButton" type="button">重新开始</button>
       </section>
     </div>
 
