@@ -53,7 +53,7 @@
   const MAX_LIVES = 10;
   const WAVE_TRACK_LENGTH = 8;
   const AUTO_START_DELAY = 3;
-  const INITIAL_REFRESH_CHARGES = 1;
+  const WAVE_REFRESH_CHARGES = 1;
   const REFRESH_AFFIX_GRANT = 2;
   const TOWER_BASE_COST = 150;
   const TOWER_COST_STEP = 50;
@@ -64,6 +64,7 @@
   const PROJECTILE_SCREEN_MARGIN = 20;
   const FROST_SLOW_DURATION = 3;
   const FROST_FREEZE_DURATION = 0.4;
+  const COLD_PRIORITY_ATTACK_SPEED_BONUS = 0.2;
   const CELL_SIZE = 50;
   const GRID_COLUMNS = 20;
   const GRID_ROWS = 12;
@@ -419,8 +420,8 @@
       id: "cold-priority",
       name: "冷点排序",
       rarity: "精良",
-      description: "自动索敌时优先处理尚未受到冰冻影响的敌人。",
-      effectText: () => "优先攻击未受冰冻影响的敌人",
+      description: "优先处理尚未受到冰冻影响的敌人，并加快对这些目标的开火速度。",
+      effectText: () => "优先攻击未受冰冻目标，攻速 +20%",
       apply: (tower) => {
         tower.prioritizeUnfrozen = true;
       },
@@ -436,7 +437,7 @@
       description: "重新整理本轮候选方案，立即获得额外刷新机会。",
       effectText: () => "刷新机会 +2",
       apply: () => {
-        state.refreshCharges += REFRESH_AFFIX_GRANT;
+        state.bonusRefreshCharges += REFRESH_AFFIX_GRANT;
       },
       icon: "refresh",
       accent: "#94d4c0",
@@ -480,7 +481,8 @@
     upgradePanelMinimized: false,
     selectingUpgradeTarget: false,
     currentChoices: [],
-    refreshCharges: INITIAL_REFRESH_CHARGES,
+    waveRefreshCharges: WAVE_REFRESH_CHARGES,
+    bonusRefreshCharges: 0,
     selectedAffixId: null,
     upgradeTargetId: null,
     lastTime: 0,
@@ -507,6 +509,18 @@
   function getTowerCost(typeKey = "sentry") {
     const typeCount = towers.filter((tower) => tower.type === typeKey).length;
     return TOWER_BASE_COST + typeCount * TOWER_COST_STEP;
+  }
+
+  function getRefreshCharges() {
+    return state.waveRefreshCharges + state.bonusRefreshCharges;
+  }
+
+  function spendRefreshCharge() {
+    if (state.waveRefreshCharges > 0) {
+      state.waveRefreshCharges -= 1;
+    } else if (state.bonusRefreshCharges > 0) {
+      state.bonusRefreshCharges -= 1;
+    }
   }
 
   function getWaveHealthScale(wave) {
@@ -579,7 +593,8 @@
       upgradePanelMinimized: false,
       selectingUpgradeTarget: false,
       currentChoices: [],
-      refreshCharges: INITIAL_REFRESH_CHARGES,
+      waveRefreshCharges: WAVE_REFRESH_CHARGES,
+      bonusRefreshCharges: 0,
       selectedAffixId: null,
       upgradeTargetId: null,
       lastTime: performance.now(),
@@ -1033,8 +1048,13 @@
         const desired = Math.atan2(target.y - tower.y, target.x - tower.x);
         tower.angle = rotateToward(tower.angle, desired, dt * 8.5);
         if (tower.cooldown <= 0) {
+          const coldPriorityBonus =
+            tower.prioritizeUnfrozen &&
+            !isEnemyFrostAffected(target);
           fireTower(tower, target);
-          tower.cooldown = tower.interval;
+          tower.cooldown = coldPriorityBonus
+            ? tower.interval / (1 + COLD_PRIORITY_ATTACK_SPEED_BONUS)
+            : tower.interval;
         }
       }
     });
@@ -1400,6 +1420,7 @@
     state.spawnQueue = [];
     enemies = [];
     projectiles = [];
+    state.waveRefreshCharges = WAVE_REFRESH_CHARGES;
 
     const choices = getRandomAffixes(3);
     if (choices.length === 0) {
@@ -1540,14 +1561,15 @@
     const refreshButton = document.createElement("button");
     refreshButton.type = "button";
     refreshButton.className = "refresh-upgrade-button";
-    refreshButton.disabled = state.refreshCharges <= 0;
-    refreshButton.title = state.refreshCharges > 0
+    const refreshCharges = getRefreshCharges();
+    refreshButton.disabled = refreshCharges <= 0;
+    refreshButton.title = refreshCharges > 0
       ? "消耗 1 次刷新机会，替换本轮三个词条"
       : "暂无刷新机会";
     refreshButton.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true">${affixIcons.refresh}</svg>
       <span>刷新词条</span>
-      <b>${state.refreshCharges}</b>
+      <b>${refreshCharges}</b>
     `;
     refreshButton.addEventListener("click", refreshUpgradeChoices);
     ui.upgradeOptions.appendChild(refreshButton);
@@ -1564,7 +1586,7 @@
           <span class="affix-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">${affixIcons[affix.icon]}</svg>
           </span>
-          <span class="affix-rarity">${affix.rarity} ${affix.global ? "全局词条" : "词条"}</span>
+          <span class="affix-kind">${affix.global ? "全局词条" : "词条"}</span>
           <h3>${affix.name}</h3>
           <p>${affix.description}</p>
           <span class="upgrade-card__effect">${affix.effectText(target || null)}</span>
@@ -1578,15 +1600,15 @@
     if (
       !state.upgradePending ||
       state.selectingUpgradeTarget ||
-      state.refreshCharges <= 0
+      getRefreshCharges() <= 0
     ) {
       return;
     }
-    state.refreshCharges -= 1;
+    spendRefreshCharge();
     state.selectedAffixId = null;
     state.currentChoices = getRandomAffixes(3);
     renderUpgradeOptions();
-    showToast(`词条已刷新，剩余 ${state.refreshCharges} 次`);
+    showToast(`词条已刷新，剩余 ${getRefreshCharges()} 次`);
     playSound("click");
   }
 
@@ -1676,11 +1698,11 @@
     let upgradedTarget = target;
 
     if (affix.global) {
-      const previousCharges = state.refreshCharges;
+      const previousCharges = getRefreshCharges();
       affix.apply(null);
       upgradedTarget = null;
       resultTitle = `${affix.name} 已生效`;
-      resultCopy = `刷新机会 ${previousCharges} → ${state.refreshCharges}`;
+      resultCopy = `刷新机会 ${previousCharges} → ${getRefreshCharges()}`;
     } else {
       const before = captureTowerStats(target);
       affix.apply(target);
@@ -1774,7 +1796,7 @@
       changes.push("新增攻击已减速目标时必定暴击");
     }
     if (after.prioritizeUnfrozen && !before.prioritizeUnfrozen) {
-      changes.push("自动索敌优先未受冰冻影响的敌人");
+      changes.push("自动索敌优先未受冰冻影响的敌人，对其攻速 +20%");
     }
     return changes.join("  ·  ") || "炮塔属性已提升";
   }
@@ -2090,7 +2112,7 @@
       {
         label: "冷点排序",
         value: tower.prioritizeUnfrozen ? 1 : 0,
-        format: () => "优先未冰冻",
+        format: () => "未冰冻目标攻速 +20%",
       },
       {
         label: "击杀金币",
@@ -2136,7 +2158,6 @@
                   <strong>${affix.name}${count > 1 ? ` ×${count}` : ""}</strong>
                   <small>${affix.effectText(tower)}</small>
                 </span>
-                <em>${affix.rarity}</em>
               </div>
             `,
           )

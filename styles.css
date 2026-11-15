@@ -1254,7 +1254,7 @@ svg {
 
 .tower-affix-row {
   display: grid;
-  grid-template-columns: 6px minmax(0, 1fr) auto;
+  grid-template-columns: 6px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-height: 36px;
@@ -1287,12 +1287,6 @@ svg {
   margin-top: 2px;
   color: #71806d;
   font-size: 9px;
-}
-
-.tower-affix-row em {
-  color: #8a7650;
-  font-size: 8px;
-  font-style: normal;
 }
 
 .tower-inspector__empty {
@@ -1704,7 +1698,7 @@ svg {
   height: 21px;
 }
 
-.affix-rarity {
+.affix-kind {
   color: #788373;
   font-size: 9px;
   font-weight: 900;
